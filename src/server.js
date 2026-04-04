@@ -287,8 +287,25 @@ const port = process.env.PORT || 3000;
 
 if (require.main === module) {
   initDefaultAdmin().then(() => {
-    app.listen(port, () => {
-      console.log(`Warehouse MVP running at http://localhost:${port}`);
+    const server = app.listen(port, () => {
+      const url = `http://localhost:${port}`;
+      console.log(`Warehouse MVP running at ${url}`);
+      // 自动打开浏览器（仅 exe 打包时生效）
+      if (process.pkg) {
+        const { spawn } = require("child_process");
+        // 使用浏览器打开页面
+        spawn("cmd", ["/c", "start", url], { detached: true, stdio: "ignore" });
+      }
+    });
+
+    // Ctrl+C 或进程终止时优雅关闭
+    process.on("SIGINT", () => {
+      console.log("\nServer shutting down.");
+      server.close(() => process.exit(0));
+    });
+    process.on("SIGTERM", () => {
+      console.log("\nServer shutting down.");
+      server.close(() => process.exit(0));
     });
   });
 }

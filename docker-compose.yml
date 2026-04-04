@@ -1,0 +1,23 @@
+services:
+  warehouse-mvp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: warehouse-mvp
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - warehouse-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  warehouse-data:
