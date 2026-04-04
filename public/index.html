@@ -263,9 +263,9 @@
                 <thead>
                   <tr>
                     <th>货物</th>
+                    <th>单位</th>
                     <th>仓库</th>
                     <th class="text-right">库存</th>
-                    <th>单位</th>
                   </tr>
                 </thead>
                 <tbody id="inventory-body"></tbody>
@@ -351,7 +351,7 @@
                   <input name="unit" placeholder="例如：个、箱、kg" required />
                 </label>
                 <div class="form-actions">
-                  <button type="submit" class="btn btn-primary goods-submit-btn">
+                  <button type="submit" class="btn btn-primary goods-submit-btn" id="goods-submit">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                       stroke-linecap="round">
                       <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
@@ -433,7 +433,7 @@
                   <input name="remark" placeholder="可选备注信息" />
                 </label>
                 <div class="form-actions">
-                  <button type="submit" class="btn btn-primary warehouse-submit-btn">
+                  <button type="submit" class="btn btn-primary warehouse-submit-btn" id="warehouse-submit-btn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                       stroke-linecap="round">
                       <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />

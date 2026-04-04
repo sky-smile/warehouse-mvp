@@ -381,10 +381,10 @@ async function loadReferenceData() {
   const goodsOpt = makeOptionsHTML(goods, "请选择货物", g => `<option value="${g.id}">${g.name} (${g.unit})</option>`);
   document.querySelectorAll('[data-role="goods-select"]').forEach(s => s.innerHTML = goodsOpt);
 
+  // 先更新所有仓库选择框，出库表单的过滤在 loadInventory 之后单独处理
   const whOpt = makeOptionsHTML(warehouses, "请选择仓库", w => `<option value="${w.id}">${w.name}</option>`);
   document.querySelectorAll('[data-role="warehouse-select"]').forEach(s => {
-    if (s.closest("#stock-out-form")) { const gs = stockOutForm.querySelector('[data-role="goods-select"]'); updateStockOutWarehouseSelect(gs?.value); }
-    else s.innerHTML = whOpt;
+    if (!s.closest("#stock-out-form")) s.innerHTML = whOpt;
   });
 
   if (filterGoods) filterGoods.innerHTML = makeOptionsHTML(goods, "全部货物", g => `<option value="${g.id}">${g.name}</option>`);
@@ -426,7 +426,7 @@ function renderWarehouseList(items) {
 
 function inventoryRows(items) {
   if (items.length === 0) return `<tr><td colspan="4" class="empty-cell">暂无库存</td></tr>`;
-  return items.map(i => `<tr><td>${i.goodsName}</td><td>${i.warehouseName}</td><td class="text-right"><span class="${qtyClass(i.quantity)}">${i.quantity}</span></td><td>${i.unit}</td></tr>`).join("");
+  return items.map(i => `<tr><td>${i.goodsName}</td><td>${i.unit}</td><td>${i.warehouseName}</td><td class="text-right"><span class="${qtyClass(i.quantity)}">${i.quantity}</span></td></tr>`).join("");
 }
 
 async function loadInventory() {
@@ -711,6 +711,9 @@ goodsForm.addEventListener("submit", async e => {
     else { await request("/api/goods", { method: "POST", body: JSON.stringify(ft(goodsForm)) }); showToast("货物添加成功"); }
     goodsForm.reset(); resetGoodsForm();
     await Promise.all([loadReferenceData(), loadInventory()]);
+    // 更新出库表单的仓库过滤（使用最新的库存数据）
+    const gs = stockOutForm.querySelector('[data-role="goods-select"]');
+    updateStockOutWarehouseSelect(gs?.value);
   } catch (err) { showToast(err.message, true); }
 });
 function resetGoodsForm() { delete goodsForm.elements.name.dataset.editId; delete goodsForm.elements.unit.dataset.editId; goodsFormTitle.textContent = "新增货物"; goodsSubmitBtn.textContent = "保存"; goodsCancelBtn?.classList.add("hidden"); }
@@ -727,6 +730,9 @@ warehouseForm.addEventListener("submit", async e => {
     else { await request("/api/warehouses", { method: "POST", body: JSON.stringify(ft(warehouseForm)) }); showToast("仓库添加成功"); }
     warehouseForm.reset(); resetWarehouseForm();
     await Promise.all([loadReferenceData(), loadInventory()]);
+    // 更新出库表单的仓库过滤（使用最新的库存数据）
+    const gs = stockOutForm.querySelector('[data-role="goods-select"]');
+    updateStockOutWarehouseSelect(gs?.value);
   } catch (err) { showToast(err.message, true); }
 });
 function resetWarehouseForm() { delete warehouseForm.elements.name.dataset.editId; delete warehouseForm.elements.remark.dataset.editId; warehouseFormTitle.textContent = "新增仓库"; warehouseSubmitBtn.textContent = "保存"; warehouseCancelBtn.classList.add("hidden"); }
