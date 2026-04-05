@@ -2,13 +2,16 @@ const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
 
-const dataDir = path.join(__dirname, "..", "data");
+const dbPath = process.env.TEST_DB_PATH || path.join(__dirname, "..", "data", "warehouse.db");
 
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+if (dbPath !== ":memory:") {
+  const dataDir = path.dirname(dbPath);
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
 }
 
-const db = new Database(path.join(dataDir, "warehouse.db"));
+const db = new Database(dbPath);
 
 const bcrypt = require("bcrypt");
 
@@ -16,17 +19,6 @@ const SALT_ROUNDS = 10;
 const DEFAULT_PASSWORD = "123456";
 
 db.pragma("foreign_keys = ON");
-
-// 添加 operator_id 列（如果不存在）
-try {
-  db.prepare("ALTER TABLE inventory_logs ADD COLUMN operator_id INTEGER").run();
-  console.log("[db] Added operator_id column to inventory_logs");
-} catch (err) {
-  // 列已存在，忽略错误
-  if (!err.message.includes("duplicate column")) {
-    console.log("[db] operator_id column already exists or error:", err.message);
-  }
-}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS goods (
@@ -86,6 +78,15 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+// Add operator_id column if it doesn't exist (migration for older databases)
+try {
+  db.prepare("ALTER TABLE inventory_logs ADD COLUMN operator_id INTEGER").run();
+} catch (err) {
+  if (!err.message.includes("duplicate column") && !err.message.includes("no such table")) {
+    console.log("[db] Unexpected error adding operator_id:", err.message);
+  }
+}
 
 async function hashPassword(plain) {
   return bcrypt.hash(plain, SALT_ROUNDS);
