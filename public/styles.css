@@ -90,33 +90,52 @@ button, input, select, textarea { font: inherit; }
 }
 
 .sidebar-header {
-  padding: 22px 22px;
+  padding: 20px 18px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), transparent);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), transparent);
+  position: relative;
 }
 
-.logo {
-  opacity: 0.9;
-  flex-shrink: 0;
-  filter: drop-shadow(0 2px 6px rgba(59, 130, 246, 0.4));
-  transition: transform var(--transition);
+.sidebar-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 18px;
+  right: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.4), transparent);
 }
 
-.logo:hover {
-  transform: rotate(-5deg) scale(1.1);
+.brand-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
 }
 
 .brand {
-  font-size: 17.5px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  background: linear-gradient(135deg, #fff, rgba(255, 255, 255, 0.8));
+  letter-spacing: 0.02em;
+  background: linear-gradient(135deg, #ffffff 0%, #bfdbfe 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+.brand-sub {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.8;
 }
 
 .sidebar-nav {
@@ -125,6 +144,107 @@ button, input, select, textarea { font: inherit; }
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* ============================================================
+   Sidebar Footer
+   ============================================================ */
+.sidebar-footer {
+  padding: 16px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(0deg, rgba(59, 130, 246, 0.05), transparent);
+}
+
+.sidebar-footer-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.footer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.footer-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: 0.02em;
+}
+
+.footer-version {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.footer-copyright {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+
+.footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  opacity: 0.8;
+}
+
+.footer-link:hover {
+  color: #60a5fa;
+  opacity: 1;
+}
+
+.footer-link svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+  .brand-sub {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar-header {
+    padding: 16px 14px;
+    gap: 12px;
+  }
+  .logo {
+    width: 32px;
+    height: 32px;
+  }
+  .brand {
+    font-size: 15px;
+  }
+  .sidebar-footer {
+    padding: 12px 14px;
+  }
+  .sidebar-footer-content {
+    margin-bottom: 8px;
+  }
+  .footer-contact {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
 }
 
 .nav-item {
@@ -1155,6 +1275,37 @@ input::placeholder { color: var(--text-muted); }
 .btn-icon:hover { background: var(--bg); color: var(--text); }
 
 .hidden { display: none !important; }
+
+/* ============================================================
+   Danger Zone
+   ============================================================ */
+.danger-zone {
+  border: 1px solid var(--red);
+  background: rgba(239, 68, 68, 0.03);
+}
+.danger-zone .card-header h2 {
+  color: var(--red);
+}
+.danger-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+}
+.danger-info {
+  flex: 1;
+}
+.danger-info strong {
+  display: block;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.danger-info p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
 
 /* ============================================================
    Tables

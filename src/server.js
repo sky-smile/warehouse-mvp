@@ -3,6 +3,28 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const express = require("express");
 const cors = require("cors");
+const fs = require("fs");
+
+// 动态读取 package.json 获取版本号
+let appVersion = "1.0.0";
+let appInfo = {
+  name: "仓库管理系统",
+  version: "1.0.0",
+  author: "",
+  repository: ""
+};
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"));
+  appVersion = pkg.version || "1.0.0";
+  appInfo = {
+    name: pkg.name || "仓库管理系统",
+    version: appVersion,
+    author: pkg.author || "",
+    repository: pkg.repository?.url?.replace("git+", "") || pkg.repository || ""
+  };
+} catch (e) {
+  console.warn("无法读取 package.json:", e.message);
+}
 const {
   initDefaultAdmin,
   getConfig, setConfig,
@@ -11,6 +33,7 @@ const {
   listInventory, listLogs, createStockIn, createStockOut,
   listUsers, createUser, updateUser, deleteUser,
   resetUserPassword, changeUserPassword, authenticateUser,
+  resetWarehouse,
 } = require("./db");
 
 const app = express();
@@ -99,6 +122,16 @@ app.get("/api/me", authMiddleware, (req, res) => {
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+// 获取应用版本信息
+app.get("/api/version", (_req, res) => {
+  res.json({
+    version: appVersion,
+    name: appInfo.name,
+    author: appInfo.author,
+    repository: appInfo.repository
+  });
 });
 
 // 获取登录提示状态（不需要认证）
@@ -271,6 +304,20 @@ app.post("/api/users/me/password", authMiddleware, async (req, res, next) => {
     }
     await changeUserPassword(req.user.id, oldPassword, newPassword);
     res.json({ message: "密码修改成功" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 重置仓库（仅默认管理员可执行）
+app.post("/api/reset", authMiddleware, requireRole("admin"), (req, res, next) => {
+  try {
+    // 仅允许默认管理员执行重置
+    if (req.user.username !== "admin") {
+      return res.status(403).json({ message: "仅默认管理员可以重置仓库" });
+    }
+    const result = resetWarehouse();
+    res.json(result);
   } catch (error) {
     next(error);
   }

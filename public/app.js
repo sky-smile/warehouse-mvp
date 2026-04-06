@@ -3,6 +3,39 @@ const ROLE_LABELS = { admin: "管理员", manager: "经理", worker: "操作员"
 const ROLE_COLORS = { admin: "#ef4444", manager: "#f59e0b", worker: "#3b82f6" };
 
 // ===========================================================
+// App Info (loaded from server)
+// ===========================================================
+async function loadAppInfo() {
+  try {
+    const res = await fetch("/api/version");
+    if (res.ok) {
+      const data = await res.json();
+      const versionEl = document.getElementById("app-version");
+      const copyrightEl = document.getElementById("footer-copyright-text");
+      const githubLink = document.getElementById("github-link");
+      const githubText = document.getElementById("github-link-text");
+
+      if (versionEl) versionEl.textContent = `v${data.version}`;
+
+      if (copyrightEl && data.author) {
+        const year = new Date().getFullYear();
+        copyrightEl.textContent = `© ${year} ${data.author}`;
+      }
+
+      if (githubLink && data.repository) {
+        githubLink.href = data.repository;
+      }
+
+      if (githubText && data.author) {
+        githubText.textContent = data.author;
+      }
+    }
+  } catch (err) {
+    console.warn("无法获取版本信息:", err);
+  }
+}
+
+// ===========================================================
 // Theme
 // ===========================================================
 function initTheme() {
@@ -154,6 +187,7 @@ const usersSubmit = document.getElementById("users-submit");
 const usersCancel = document.getElementById("users-cancel");
 const usersCount = document.getElementById("users-count");
 const usersList = document.getElementById("users-list");
+const resetWarehouseBtn = document.getElementById("reset-warehouse-btn");
 
 // Nav
 const navItems = document.querySelectorAll(".nav-item");
@@ -792,9 +826,41 @@ warehouseList.addEventListener("click", async e => {
 });
 
 /* ===========================================================
+   Reset Warehouse
+   =========================================================== */
+if (resetWarehouseBtn) {
+  resetWarehouseBtn.addEventListener("click", async () => {
+    const ok = await showConfirm(
+      "重置仓库",
+      "警告！此操作将清除所有货物、仓库、库存和出入库记录，但保留默认管理员账户。\n\n此操作不可恢复，确定要继续吗？"
+    );
+    if (!ok) return;
+
+    // 二次确认
+    const ok2 = await showConfirm(
+      "再次确认",
+      "您确定要重置仓库吗？所有数据将被永久删除！"
+    );
+    if (!ok2) return;
+
+    try {
+      showLoading();
+      await request("/api/reset", { method: "POST", body: JSON.stringify({}) });
+      showToast("仓库已重置成功");
+      await refreshAll();
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      hideLoading();
+    }
+  });
+}
+
+/* ===========================================================
    Init
    =========================================================== */
 function init() {
+  loadAppInfo();
   if (loadAuth() && currentUser) {
     showMainPage();
   } else {

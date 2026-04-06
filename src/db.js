@@ -667,6 +667,24 @@ function deleteUser(id) {
   return true;
 }
 
+// 重置仓库：清除所有数据，保留默认管理员账户
+function resetWarehouse() {
+  const resetTransaction = db.transaction(() => {
+    // 先删除有外键依赖的表
+    db.prepare("DELETE FROM inventory_logs").run();
+    db.prepare("DELETE FROM inventory").run();
+    db.prepare("DELETE FROM goods").run();
+    db.prepare("DELETE FROM warehouses").run();
+    // 删除除默认管理员外的所有用户
+    db.prepare("DELETE FROM users WHERE username != 'admin'").run();
+    // 重置 app_config 表（保留 login_hint_shown）
+    db.prepare("DELETE FROM app_config WHERE key != 'login_hint_shown'").run();
+  });
+
+  resetTransaction();
+  return { message: "仓库已重置，默认管理员账户已保留" };
+}
+
 async function authenticateUser(username, password) {
   console.log('[auth] Attempting login for:', username, 'pwd:', password);
   const user = findUserByUsername.get(normalizeText(username));
@@ -721,4 +739,6 @@ module.exports = {
   resetUserPassword,
   changeUserPassword,
   authenticateUser,
+  // Warehouse reset
+  resetWarehouse,
 };

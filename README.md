@@ -42,7 +42,7 @@ warehouse-mvp/
 ├── test/
 │   └── api.test.js           # API 集成测试
 ├── package.json              # 项目依赖 & 脚本
-└── QWEN.md                   # 项目上下文文档
+└── README.md                 # 项目文档
 ```
 
 ## 安装与运行
@@ -90,6 +90,7 @@ npm test
 | POST | `/api/login` | 用户登录 | 公开 |
 | GET | `/api/me` | 获取当前用户信息 | 已认证 |
 | GET | `/api/health` | 健康检查 | 公开 |
+| GET | `/api/version` | 获取应用版本信息 | 公开 |
 
 ### 货物管理
 
