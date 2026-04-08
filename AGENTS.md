@@ -34,3 +34,10 @@
 - Keep changes minimal and consistent with the existing style: CommonJS modules, direct Express route handlers, and `better-sqlite3` prepared statements/transactions in the DB layer.
 - Future git commit messages and GitHub release notes should be written in Chinese.
 - For every release, update both `package.json` `version` and the README `版本记录` section before tagging/publishing.
+
+## 发布前最终清单
+- 同步更新 `package.json` 中的 `version` 与 README 的 `版本记录`，两处版本号必须一致。
+- 检查 README 的 `升级注意事项` 是否需要追加与当前版本相关的行为变化。
+- 执行 `npm test`，只有通过后才允许打 tag / 发 release。
+- Git 提交信息、tag 对应的 release title、release notes 一律使用中文。
+- 发布后确认 GitHub latest release、最新 tag、`package.json` 版本和 README 最新版本记录四者一致。
