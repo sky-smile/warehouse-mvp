@@ -26,12 +26,13 @@ try {
 }
 const {
   initDefaultAdmin,
-  getConfig, setConfig,
+  getConfig,
   listGoods, createGoods, updateGoods, deleteGoods,
   listWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
   listInventory, listLogs, createStockIn, createStockOut,
   listUsers, createUser, updateUser, deleteUser,
   resetUserPassword, changeUserPassword, authenticateUser,
+  isDefaultAdminPasswordChangeRequired,
   resetWarehouse,
 } = require("./db");
 
@@ -79,20 +80,6 @@ function requireRole(...roles) {
   };
 }
 
-// 可选认证（不强制）
-function optionalAuth(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      req.user = decoded;
-    } catch (err) { }
-  }
-  next();
-}
-
 // ---- 登录路由（不需要认证）----
 app.post("/api/login", async (req, res, next) => {
   try {
@@ -121,6 +108,15 @@ app.post("/api/login", async (req, res, next) => {
 // 获取当前用户信息
 app.get("/api/me", authMiddleware, (req, res) => {
   res.json(req.user);
+});
+
+app.get("/api/me/security", authMiddleware, async (req, res, next) => {
+  try {
+    const mustChangePassword = await isDefaultAdminPasswordChangeRequired(req.user.id);
+    res.json({ mustChangePassword });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get("/api/health", (_req, res) => {

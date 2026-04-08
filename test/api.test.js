@@ -73,6 +73,23 @@ async function getJson(baseUrl, path, token) {
   };
 }
 
+async function deleteJson(baseUrl, path, token) {
+  const headers = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "DELETE",
+    headers,
+  });
+
+  return {
+    status: response.status,
+    json: response.status === 204 ? null : await response.json(),
+  };
+}
+
 async function login(baseUrl, username = "admin", password = "123456") {
   const response = await fetch(`${baseUrl}/api/login`, {
     method: "POST",
@@ -89,7 +106,9 @@ function cleanDb() {
     DELETE FROM inventory;
     DELETE FROM goods;
     DELETE FROM warehouses;
-    DELETE FROM sqlite_sequence WHERE name IN ('goods', 'warehouses', 'inventory', 'inventory_logs');
+    DELETE FROM users;
+    DELETE FROM app_config;
+    DELETE FROM sqlite_sequence WHERE name IN ('goods', 'warehouses', 'inventory', 'inventory_logs', 'users');
   `);
 }
 
@@ -332,4 +351,65 @@ test("rejects invalid business dates for stock movements", async (t) => {
 
   assert.equal(invalidDateResult.status, 400);
   assert.equal(invalidDateResult.json.message, "业务日期无效");
+});
+
+test("requires default admin to change password before clearing security flag", async (t) => {
+  cleanDb();
+  await initDefaultAdmin();
+  const { server, baseUrl } = await createServer();
+  t.after(() => server.close());
+
+  const token = await login(baseUrl);
+
+  const beforeChange = await getJson(baseUrl, "/api/me/security", token);
+  assert.equal(beforeChange.status, 200);
+  assert.equal(beforeChange.json.mustChangePassword, true);
+
+  const changePassword = await postJson(baseUrl, "/api/users/me/password", {
+    oldPassword: "123456",
+    newPassword: "newpass123",
+  }, token);
+  assert.equal(changePassword.status, 200);
+
+  const afterChange = await getJson(baseUrl, "/api/me/security", token);
+  assert.equal(afterChange.status, 200);
+  assert.equal(afterChange.json.mustChangePassword, false);
+});
+
+test("returns conflict when deleting referenced warehouse or default admin", async (t) => {
+  cleanDb();
+  await initDefaultAdmin();
+  const { server, baseUrl } = await createServer();
+  t.after(() => server.close());
+
+  const token = await login(baseUrl);
+
+  const goodsResult = await postJson(baseUrl, "/api/goods", {
+    name: "冲突测试货物",
+    unit: "件",
+  }, token);
+  assert.equal(goodsResult.status, 201);
+
+  const warehouseResult = await postJson(baseUrl, "/api/warehouses", {
+    name: "冲突测试仓库",
+    remark: "引用中",
+  }, token);
+  assert.equal(warehouseResult.status, 201);
+
+  const stockInResult = await postJson(baseUrl, "/api/stock-in", {
+    goodsId: goodsResult.json.id,
+    warehouseId: warehouseResult.json.id,
+    quantity: 2,
+    bizDate: "2026-04-05",
+    remark: "建引用",
+  }, token);
+  assert.equal(stockInResult.status, 201);
+
+  const deleteWarehouseResult = await deleteJson(baseUrl, `/api/warehouses/${warehouseResult.json.id}`, token);
+  assert.equal(deleteWarehouseResult.status, 409);
+  assert.equal(deleteWarehouseResult.json.message, "无法删除：该仓库存在库存记录");
+
+  const deleteDefaultAdminResult = await deleteJson(baseUrl, "/api/users/1", token);
+  assert.equal(deleteDefaultAdminResult.status, 409);
+  assert.equal(deleteDefaultAdminResult.json.message, "无法删除默认管理员账户");
 });

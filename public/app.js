@@ -56,6 +56,7 @@ initTheme();
 let currentUser = null;
 let authToken = null;
 let isHandlingAuthError = false;
+let mustChangePassword = false;
 
 function saveAuth(token, user) {
   authToken = token;
@@ -66,6 +67,7 @@ function saveAuth(token, user) {
 function clearAuth() {
   authToken = null;
   currentUser = null;
+  mustChangePassword = false;
   localStorage.removeItem("wms_token");
   localStorage.removeItem("wms_user");
 }
@@ -265,6 +267,12 @@ async function request(url, opts = {}) {
   return r.json();
 }
 
+async function syncSecurityState() {
+  const security = await request("/api/me/security");
+  mustChangePassword = Boolean(security?.mustChangePassword);
+  return mustChangePassword;
+}
+
 /* ===========================================================
    Permission apply
    =========================================================== */
@@ -305,6 +313,13 @@ function showMainPage() {
   refreshAll();
 }
 
+function openChangePasswordModal(force = false) {
+  userDropdown.classList.add("hidden");
+  changePwdModal.classList.remove("hidden");
+  changePwdForm.reset();
+  changePwdCancel.classList.toggle("hidden", force);
+}
+
 if (loginForm) {
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -315,7 +330,12 @@ if (loginForm) {
       if (!r.ok) { const d = await r.json(); throw new Error(d.message); }
       const data = await r.json();
       saveAuth(data.token, data.user);
+      await syncSecurityState();
       showMainPage();
+      if (mustChangePassword) {
+        showToast("默认管理员首次登录后必须修改密码", true);
+        openChangePasswordModal(true);
+      }
     } catch (err) { loginError.classList.remove("hidden"); loginError.textContent = err.message; }
   });
 }
@@ -331,12 +351,14 @@ document.addEventListener("click", () => userDropdown?.classList.add("hidden"));
 // Change own password
 if (changePwdBtn) {
   changePwdBtn.addEventListener("click", () => {
-    userDropdown.classList.add("hidden");
-    changePwdModal.classList.remove("hidden");
-    changePwdForm.reset();
+    openChangePasswordModal(false);
   });
 }
-if (changePwdCancel) changePwdCancel.addEventListener("click", () => { changePwdModal.classList.add("hidden"); changePwdForm.reset(); });
+if (changePwdCancel) changePwdCancel.addEventListener("click", () => {
+  if (mustChangePassword) return;
+  changePwdModal.classList.add("hidden");
+  changePwdForm.reset();
+});
 if (changePwdForm) {
   changePwdForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -344,7 +366,9 @@ if (changePwdForm) {
     const newP = changePwdForm.new.value;
     try {
       await request("/api/users/me/password", { method: "POST", body: JSON.stringify({ oldPassword: oldP, newPassword: newP }) });
+      mustChangePassword = false;
       showToast("密码修改成功");
+      changePwdCancel.classList.remove("hidden");
       changePwdModal.classList.add("hidden");
       changePwdForm.reset();
     } catch (err) { showToast(err.message, true); }

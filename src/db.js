@@ -117,11 +117,20 @@ function validatePassword(password, { allowDefault = true } = {}) {
 }
 
 async function initDefaultAdmin() {
-  const exists = db.prepare("SELECT id FROM users WHERE role = 'admin'").get();
-  if (!exists) {
+  let adminUser = db.prepare("SELECT id, username, password_hash FROM users WHERE username = 'admin'").get();
+
+  if (!adminUser) {
     const hash = await hashPassword(DEFAULT_PASSWORD);
     db.prepare("INSERT INTO users (username, password_hash, real_name, role) VALUES (?, ?, '默认管理员', 'admin')").run("admin", hash);
     console.log("[db] Default admin user created (username: admin, password: 123456)");
+    adminUser = db.prepare("SELECT id, username, password_hash FROM users WHERE username = 'admin'").get();
+  }
+
+  if (getConfig("default_admin_password_changed") === null) {
+    const usesDefaultPassword = adminUser
+      ? await bcrypt.compare(DEFAULT_PASSWORD, adminUser.password_hash)
+      : true;
+    setConfig("default_admin_password_changed", usesDefaultPassword ? "false" : "true");
   }
 
   // 标记登录提示已显示过（服务器端记录，清除localStorage也不影响）
@@ -141,6 +150,23 @@ function getConfig(key) {
 // 设置配置
 function setConfig(key, value) {
   db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)").run(key, value);
+}
+
+function setDefaultAdminPasswordChanged(changed) {
+  setConfig("default_admin_password_changed", changed ? "true" : "false");
+}
+
+function isDefaultAdmin(user) {
+  return user?.username === "admin";
+}
+
+async function isDefaultAdminPasswordChangeRequired(userId) {
+  const user = findUserById.get(userId);
+  if (!isDefaultAdmin(user)) {
+    return false;
+  }
+
+  return getConfig("default_admin_password_changed") !== "true";
 }
 
 const findGoodsById = db.prepare(`
@@ -432,7 +458,7 @@ function deleteWarehouse(id) {
     }
   } catch (error) {
     if (error.code === "SQLITE_CONSTRAINT_FOREIGNKEY") {
-      error.status = 400;
+      error.status = 409;
       error.message = "无法删除：该仓库存在库存记录";
     }
     throw error;
@@ -674,6 +700,11 @@ async function resetUserPassword(id, newPassword) {
   const plainPassword = validatePassword(newPassword || DEFAULT_PASSWORD);
   const hash = await hashPassword(plainPassword);
   db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, id);
+
+  if (isDefaultAdmin(existing)) {
+    setDefaultAdminPasswordChanged(plainPassword !== DEFAULT_PASSWORD);
+  }
+
   return true;
 }
 
@@ -701,6 +732,11 @@ async function changeUserPassword(id, oldPassword, newPassword) {
 
   const hash = await hashPassword(normalizedNewPassword);
   db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, id);
+
+  if (isDefaultAdmin(existing)) {
+    setDefaultAdminPasswordChanged(true);
+  }
+
   return true;
 }
 
@@ -714,7 +750,7 @@ function deleteUser(id) {
 
   if (existing.username === "admin") {
     const error = new Error("无法删除默认管理员账户");
-    error.status = 400;
+    error.status = 409;
     throw error;
   }
 
@@ -788,6 +824,7 @@ module.exports = {
   resetUserPassword,
   changeUserPassword,
   authenticateUser,
+  isDefaultAdminPasswordChangeRequired,
   // Warehouse reset
   resetWarehouse,
 };
