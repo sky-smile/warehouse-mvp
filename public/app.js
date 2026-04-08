@@ -229,6 +229,12 @@ function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, "&#96;");
 }
 
+function escapeCsvCell(value) {
+  const normalizedValue = String(value ?? "").replace(/\r?\n/g, " ");
+  const safeValue = /^[=+\-@]/.test(normalizedValue) ? `'${normalizedValue}` : normalizedValue;
+  return `"${safeValue.replace(/"/g, '""')}"`;
+}
+
 async function request(url, opts = {}) {
   const h = { "Content-Type": "application/json" };
   if (authToken) h["Authorization"] = `Bearer ${authToken}`;
@@ -593,15 +599,15 @@ async function exportLogsToExcel() {
     const rows = logs.map(l => {
       const time = l.createdAt ? new Date(l.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
       return [
-        l.type === "IN" ? "入库" : "出库",
-        `"${l.goodsName}"`,
-        `"${l.unit}"`,
-        `"${l.warehouseName}"`,
-        `${l.quantity} ${l.unit}`,
-        l.bizDate,
-        time,
-        `"${l.operatorName || l.operatorUsername || "—"}"`,
-        `"${l.remark || "—"}"`
+        escapeCsvCell(l.type === "IN" ? "入库" : "出库"),
+        escapeCsvCell(l.goodsName),
+        escapeCsvCell(l.unit),
+        escapeCsvCell(l.warehouseName),
+        escapeCsvCell(`${l.quantity} ${l.unit}`),
+        escapeCsvCell(l.bizDate),
+        escapeCsvCell(time),
+        escapeCsvCell(l.operatorName || l.operatorUsername || "—"),
+        escapeCsvCell(l.remark || "—")
       ];
     });
 

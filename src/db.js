@@ -92,6 +92,30 @@ async function hashPassword(plain) {
   return bcrypt.hash(plain, SALT_ROUNDS);
 }
 
+function validatePassword(password, { allowDefault = true } = {}) {
+  const normalizedPassword = typeof password === "string" ? password : "";
+
+  if (!normalizedPassword) {
+    const error = new Error("密码不能为空");
+    error.status = 400;
+    throw error;
+  }
+
+  if (normalizedPassword.length < 6) {
+    const error = new Error("密码长度不能少于 6 位");
+    error.status = 400;
+    throw error;
+  }
+
+  if (!allowDefault && normalizedPassword === DEFAULT_PASSWORD) {
+    const error = new Error("新密码不能使用默认密码");
+    error.status = 400;
+    throw error;
+  }
+
+  return normalizedPassword;
+}
+
 async function initDefaultAdmin() {
   const exists = db.prepare("SELECT id FROM users WHERE role = 'admin'").get();
   if (!exists) {
@@ -155,6 +179,34 @@ const insertInventoryLog = db.prepare(`
 
 function normalizeText(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function validateBizDate(value) {
+  const normalizedDate = normalizeText(value);
+
+  if (!normalizedDate) {
+    const error = new Error("业务日期不能为空");
+    error.status = 400;
+    throw error;
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+    const error = new Error("业务日期格式必须为 YYYY-MM-DD");
+    error.status = 400;
+    throw error;
+  }
+
+  const parsed = new Date(`${normalizedDate}T00:00:00Z`);
+  const isValidDate = !Number.isNaN(parsed.getTime())
+    && parsed.toISOString().slice(0, 10) === normalizedDate;
+
+  if (!isValidDate) {
+    const error = new Error("业务日期无效");
+    error.status = 400;
+    throw error;
+  }
+
+  return normalizedDate;
 }
 
 function assertPositiveNumber(value, fieldName) {
@@ -466,13 +518,7 @@ const createMovement = db.transaction(({ type, goodsId, warehouseId, quantity, b
   assertExistingGoods(goodsId);
   assertExistingWarehouse(warehouseId);
 
-  const normalizedBizDate = normalizeText(bizDate);
-
-  if (!normalizedBizDate) {
-    const error = new Error("业务日期不能为空");
-    error.status = 400;
-    throw error;
-  }
+  const normalizedBizDate = validateBizDate(bizDate);
 
   const normalizedRemark = normalizeText(remark);
   const normalizedQuantity = assertPositiveNumber(quantity, "数量");
@@ -604,11 +650,13 @@ async function updateUser(id, { realName, role, isActive }) {
   const isDefaultAdmin = existing.username === "admin";
   const normalizedRealName = normalizeText(realName);
   const normalizedRole = isDefaultAdmin ? existing.role : (role && ["admin", "manager", "worker"].includes(role) ? role : existing.role);
-  const normalizedIsActive = isDefaultAdmin ? existing.is_active : (isActive !== undefined ? (isActive === 1 || isActive === true || isActive === "1" ? 1 : 0) : existing.is_active);
+  const normalizedIsActive = isDefaultAdmin
+    ? existing.isActive
+    : (isActive !== undefined ? (isActive === 1 || isActive === true || isActive === "1" ? 1 : 0) : existing.isActive);
 
   db.prepare(`
     UPDATE users SET real_name = ?, role = ?, is_active = ? WHERE id = ?
-  `).run(normalizedRealName || existing.real_name, normalizedRole, normalizedIsActive, id);
+  `).run(normalizedRealName || existing.realName, normalizedRole, normalizedIsActive, id);
 
   const user = findUserById.get(id);
   delete user.password_hash;
@@ -623,7 +671,7 @@ async function resetUserPassword(id, newPassword) {
     throw error;
   }
 
-  const plainPassword = newPassword || DEFAULT_PASSWORD;
+  const plainPassword = validatePassword(newPassword || DEFAULT_PASSWORD);
   const hash = await hashPassword(plainPassword);
   db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, id);
   return true;
@@ -644,7 +692,14 @@ async function changeUserPassword(id, oldPassword, newPassword) {
     throw error;
   }
 
-  const hash = await hashPassword(newPassword);
+  const normalizedNewPassword = validatePassword(newPassword, { allowDefault: false });
+  if (oldPassword === normalizedNewPassword) {
+    const error = new Error("新密码不能与旧密码相同");
+    error.status = 400;
+    throw error;
+  }
+
+  const hash = await hashPassword(normalizedNewPassword);
   db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, id);
   return true;
 }
@@ -686,23 +741,17 @@ function resetWarehouse() {
 }
 
 async function authenticateUser(username, password) {
-  console.log('[auth] Attempting login for:', username, 'pwd:', password);
   const user = findUserByUsername.get(normalizeText(username));
-  console.log('[auth] User found:', user ? user.username : 'no', 'hash:', user ? user.password_hash.slice(0, 25) : null);
   if (!user) {
-    console.log('[auth] User not found');
     return null;
   }
 
   const valid = await bcrypt.compare(password, user.password_hash);
-  console.log('[auth] Password valid:', valid);
   if (!valid) {
-    console.log('[auth] Password invalid');
     return null;
   }
 
   if (!user.isActive) {
-    console.log('[auth] User inactive');
     return null;
   }
 

@@ -1,5 +1,4 @@
 const path = require("path");
-const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const express = require("express");
 const cors = require("cors");
@@ -43,7 +42,13 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 // JWT config
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString("hex");
+const DEFAULT_JWT_SECRET = "dev-only-change-me";
+
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required in production");
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
 const JWT_EXPIRES_IN = "24h";
 
 // ---- 认证中间件 ----
@@ -92,13 +97,11 @@ function optionalAuth(req, res, next) {
 app.post("/api/login", async (req, res, next) => {
   try {
     const { username, password } = req.body ?? {};
-    console.log('[login] Attempt:', JSON.stringify({ username, password }), 'full body:', JSON.stringify(req.body));
     if (!username || !password) {
       return res.status(400).json({ message: "用户名和密码不能为空" });
     }
 
     const user = await authenticateUser(username, password);
-    console.log('[login] authenticateUser returned:', JSON.stringify(user));
     if (!user) {
       return res.status(401).json({ message: "用户名或密码错误" });
     }
@@ -140,7 +143,7 @@ app.get("/api/config/login-hint", (_req, res) => {
   res.json({ showHint: !hintShown });
 });
 
-app.get("/api/goods", optionalAuth, (_req, res) => {
+app.get("/api/goods", authMiddleware, (_req, res) => {
   res.json(listGoods());
 });
 
@@ -173,7 +176,7 @@ app.delete("/api/goods/:id", authMiddleware, requireRole("admin", "manager"), (r
   }
 });
 
-app.get("/api/warehouses", optionalAuth, (_req, res) => {
+app.get("/api/warehouses", authMiddleware, (_req, res) => {
   res.json(listWarehouses());
 });
 
@@ -206,11 +209,11 @@ app.delete("/api/warehouses/:id", authMiddleware, requireRole("admin", "manager"
   }
 });
 
-app.get("/api/inventory", optionalAuth, (_req, res) => {
+app.get("/api/inventory", authMiddleware, (_req, res) => {
   res.json(listInventory());
 });
 
-app.get("/api/logs", optionalAuth, (req, res) => {
+app.get("/api/logs", authMiddleware, (req, res) => {
   res.json(listLogs({
     goodsId: req.query.goodsId ? Number(req.query.goodsId) : undefined,
     warehouseId: req.query.warehouseId ? Number(req.query.warehouseId) : undefined,

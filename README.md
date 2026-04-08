@@ -96,7 +96,7 @@ npm test
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
-| GET | `/api/goods` | 获取所有货物 | 公开（只读） |
+| GET | `/api/goods` | 获取所有货物 | 已认证 |
 | POST | `/api/goods` | 创建货物 | admin, manager |
 | PUT | `/api/goods/:id` | 更新货物 | admin, manager |
 | DELETE | `/api/goods/:id` | 删除货物 | admin, manager |
@@ -105,7 +105,7 @@ npm test
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
-| GET | `/api/warehouses` | 获取所有仓库 | 公开（只读） |
+| GET | `/api/warehouses` | 获取所有仓库 | 已认证 |
 | POST | `/api/warehouses` | 创建仓库 | admin, manager |
 | PUT | `/api/warehouses/:id` | 更新仓库 | admin, manager |
 | DELETE | `/api/warehouses/:id` | 删除仓库 | admin, manager |
@@ -114,8 +114,8 @@ npm test
 
 | 方法 | 路径 | 说明 | 权限 |
 |------|------|------|------|
-| GET | `/api/inventory` | 获取当前库存 | 公开（只读） |
-| GET | `/api/logs` | 获取出入库流水 | 公开（只读） |
+| GET | `/api/inventory` | 获取当前库存 | 已认证 |
+| GET | `/api/logs` | 获取出入库流水 | 已认证 |
 | POST | `/api/stock-in` | 入库操作 | admin, manager, worker |
 | POST | `/api/stock-out` | 出库操作 | admin, manager, worker |
 
@@ -153,6 +153,7 @@ npm test
 - 使用 SQLite，数据库文件位于 `data/warehouse.db`
 - 表结构：`goods`, `warehouses`, `inventory`, `inventory_logs`, `users`, `app_config`
 - 启动时自动创建表和默认管理员
+- 出入库接口要求 `bizDate` 使用 `YYYY-MM-DD` 格式，且必须是有效日期
 
 ### 前端
 
@@ -160,16 +161,18 @@ npm test
 - 认证 token 存储在 `localStorage` 中
 - 通过 `Authorization: Bearer <token>` 头进行 API 认证
 - 支持深色/浅色主题切换
+- 导出流水时生成 UTF-8 BOM 的 CSV 文件，并对引号、换行和公式前缀做安全转义
 
 ### 测试
 
 - 使用 Node.js 内置 `node:test` 模块
 - 测试前自动清空数据表
 - 动态端口启动测试服务器
+- 测试使用内存 SQLite（`TEST_DB_PATH=:memory:`），不会写入 `data/warehouse.db`
 
 ## 环境变量
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | `PORT` | 服务器端口 | `3000` |
-| `JWT_SECRET` | JWT 密钥 | 随机 32 字节 hex |
+| `JWT_SECRET` | JWT 密钥 | 开发环境默认 `dev-only-change-me`；生产环境必须显式设置 |
