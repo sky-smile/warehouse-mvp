@@ -26,7 +26,6 @@ try {
 }
 const {
   initDefaultAdmin,
-  getConfig,
   listGoods, createGoods, updateGoods, deleteGoods,
   listWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
   listInventory, listLogs, createStockIn, createStockOut,
@@ -134,11 +133,6 @@ app.get("/api/version", (_req, res) => {
 });
 
 // 获取登录提示状态（不需要认证）
-app.get("/api/config/login-hint", (_req, res) => {
-  const hintShown = getConfig("login_hint_shown");
-  res.json({ showHint: !hintShown });
-});
-
 app.get("/api/goods", authMiddleware, (_req, res) => {
   res.json(listGoods());
 });

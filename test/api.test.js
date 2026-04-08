@@ -90,6 +90,10 @@ async function deleteJson(baseUrl, path, token) {
   };
 }
 
+async function requestRaw(baseUrl, path, options = {}) {
+  return fetch(`${baseUrl}${path}`, options);
+}
+
 async function login(baseUrl, username = "admin", password = "123456") {
   const response = await fetch(`${baseUrl}/api/login`, {
     method: "POST",
@@ -207,6 +211,9 @@ test("requires authentication for read-only data APIs", async (t) => {
   assert.equal(warehousesResponse.status, 401);
   assert.equal(inventoryResponse.status, 401);
   assert.equal(logsResponse.status, 401);
+
+  const loginHintResponse = await requestRaw(baseUrl, "/api/config/login-hint");
+  assert.equal(loginHintResponse.status, 404);
 });
 
 test("keeps issued tokens valid across server restarts", async (t) => {

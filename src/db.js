@@ -132,13 +132,6 @@ async function initDefaultAdmin() {
       : true;
     setConfig("default_admin_password_changed", usesDefaultPassword ? "false" : "true");
   }
-
-  // 标记登录提示已显示过（服务器端记录，清除localStorage也不影响）
-  const hintShown = db.prepare("SELECT key FROM app_config WHERE key = 'login_hint_shown'").get();
-  if (!hintShown) {
-    db.prepare("INSERT INTO app_config (key, value) VALUES (?, ?)").run("login_hint_shown", "true");
-    console.log("[db] Login hint marked as shown (server-side)");
-  }
 }
 
 // 获取配置
@@ -768,8 +761,7 @@ function resetWarehouse() {
     db.prepare("DELETE FROM warehouses").run();
     // 删除除默认管理员外的所有用户
     db.prepare("DELETE FROM users WHERE username != 'admin'").run();
-    // 重置 app_config 表（保留 login_hint_shown）
-    db.prepare("DELETE FROM app_config WHERE key != 'login_hint_shown'").run();
+    db.prepare("DELETE FROM app_config").run();
   });
 
   resetTransaction();

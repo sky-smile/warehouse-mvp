@@ -78,21 +78,6 @@ function loadAuth() {
   return false;
 }
 
-// Hide login hint based on server config
-async function checkLoginHint() {
-  try {
-    const res = await fetch("/api/config/login-hint");
-    if (res.ok) {
-      const data = await res.json();
-      if (!data.showHint && loginHint) {
-        loginHint.style.display = "none";
-      }
-    }
-  } catch (err) {
-    // 如果获取失败，保持默认显示
-  }
-}
-
 function hasRole(...roles) { return currentUser && roles.includes(currentUser.role); }
 function canDo(action) {
   if (!currentUser) return false;
@@ -168,7 +153,6 @@ const logsCount = document.getElementById("logs-count");
 const loginPage = document.getElementById("login-page");
 const loginForm = document.getElementById("login-form");
 const loginError = document.getElementById("login-error");
-const loginHint = document.getElementById("login-hint");
 
 // Topbar user
 const topbarUserName = document.getElementById("topbar-user-name");
@@ -961,6 +945,5 @@ function init() {
   } else {
     showLoginPage();
   }
-  checkLoginHint();
 }
 init();
