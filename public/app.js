@@ -764,7 +764,7 @@ if (usersList) {
     if (btn.dataset.resetpwd) {
       const ok = await showConfirm("重置密码", `确定将用户 "${btn.dataset.resetpwdName}" 的密码重置为 123456 吗？`);
       if (!ok) return;
-      try { await request(`/api/users/${btn.dataset.resetpwd}/reset-password`, { method: "POST", body: {} }); showToast("密码已重置为 123456"); }
+      try { await request(`/api/users/${btn.dataset.resetpwd}/reset-password`, { method: "POST", body: JSON.stringify({}) }); showToast("密码已重置为 123456"); }
       catch (err) { showToast(err.message, true); }
     }
   });

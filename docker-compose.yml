@@ -12,6 +12,11 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}  # 从 .env 文件读取
+      # 或直接写死（不推荐生产环境）
+      # - JWT_SECRET=your-super-secret-key-here-change-in-production
+    env_file:
+      - .env  # 加载 .env 文件中的环境变量
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
       interval: 30s
