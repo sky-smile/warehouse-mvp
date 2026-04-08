@@ -179,6 +179,21 @@ npm test
 | `PORT` | 服务器端口 | `3000` |
 | `JWT_SECRET` | JWT 密钥 | 开发环境默认 `dev-only-change-me`；生产环境必须显式设置 |
 
+## 升级注意事项
+
+- 从旧版本升级到 `v1.1.4` 后，只读接口 `/api/goods`、`/api/warehouses`、`/api/inventory`、`/api/logs` 都要求携带登录态，依赖匿名读取的脚本或页面需要同步调整。
+- 默认管理员首次登录后必须修改密码；如果仍使用初始化默认密码，前端会强制进入修改密码流程。
+- 旧的 `/api/config/login-hint` 接口和 `login_hint_shown` 逻辑已移除，不应再依赖该接口或配置键。
+- 出入库接口现在会严格校验 `bizDate`，必须为有效的 `YYYY-MM-DD` 日期字符串。
+- CSV 导出已增加安全转义；如果你有外部导入脚本依赖旧导出格式，需要重新验证兼容性。
+
+## 发布流程
+
+- 每次发布前必须同步更新 `package.json` 中的 `version`。
+- 每次发布前必须同步更新本 README 的 `版本记录` 区块，补上当前版本的中文摘要。
+- 发布前至少执行一次 `npm test`，确认当前版本可发布。
+- Git 提交信息和 GitHub release notes 统一使用中文。
+
 ## 版本记录
 
 ### v1.1.4

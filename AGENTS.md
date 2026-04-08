@@ -33,3 +33,4 @@
 - This is a small single-package repo. Most backend behavior is wired directly in `src/server.js`; most persistence rules, validation, and the only schema/migration logic are in `src/db.js`.
 - Keep changes minimal and consistent with the existing style: CommonJS modules, direct Express route handlers, and `better-sqlite3` prepared statements/transactions in the DB layer.
 - Future git commit messages and GitHub release notes should be written in Chinese.
+- For every release, update both `package.json` `version` and the README `版本记录` section before tagging/publishing.
