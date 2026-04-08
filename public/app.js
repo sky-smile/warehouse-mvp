@@ -55,6 +55,7 @@ initTheme();
 // ===========================================================
 let currentUser = null;
 let authToken = null;
+let isHandlingAuthError = false;
 
 function saveAuth(token, user) {
   authToken = token;
@@ -202,6 +203,7 @@ const TAB_LABELS = {
 let goodsCache = [];
 let warehouseCache = [];
 let invCache = [];
+let logsCache = [];
 let usersCache = [];
 
 stockInForm.elements.bizDate.value = today;
@@ -214,10 +216,41 @@ setInterval(updateClock, 30_000);
    =========================================================== */
 function ft(form) { return Object.fromEntries(new FormData(form).entries()); }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/`/g, "&#96;");
+}
+
 async function request(url, opts = {}) {
   const h = { "Content-Type": "application/json" };
   if (authToken) h["Authorization"] = `Bearer ${authToken}`;
   const r = await fetch(url, { cache: "no-store", headers: h, ...opts });
+  if (r.status === 401) {
+    clearAuth();
+
+    if (!isHandlingAuthError) {
+      isHandlingAuthError = true;
+      userDropdown?.classList.add("hidden");
+      showLoginPage();
+      loginError.classList.remove("hidden");
+      loginError.textContent = "登录已过期，请重新登录";
+      showToast("登录已过期，请重新登录", true);
+      setTimeout(() => {
+        isHandlingAuthError = false;
+      }, 0);
+    }
+
+    throw new Error("登录已过期，请重新登录");
+  }
+
   if (!r.ok) {
     const e = await r.json().catch(() => ({ message: "操作失败" }));
     throw new Error(e.message);
@@ -249,7 +282,9 @@ function showLoginPage() {
   loginPage.classList.remove("hidden");
   document.querySelector(".app").style.display = "none";
   loginForm.reset();
-  loginError.classList.add("hidden");
+  if (!isHandlingAuthError) {
+    loginError.classList.add("hidden");
+  }
 }
 function showMainPage() {
   loginPage.classList.add("hidden");
@@ -387,7 +422,7 @@ function qtyClass(qty) {
   return "in-row";
 }
 function makeOptionsHTML(items, placeholder, formatter) {
-  return `<option value="">${placeholder}</option>` + items.map(formatter).join("");
+  return `<option value="">${escapeHtml(placeholder)}</option>` + items.map(formatter).join("");
 }
 
 /* ===========================================================
@@ -397,31 +432,32 @@ function updateStockOutWarehouseSelect(goodsId) {
   const select = stockOutForm.querySelector('[data-role="warehouse-select"]');
   if (!select) return;
   if (!goodsId) {
-    select.innerHTML = makeOptionsHTML(warehouseCache, "请选择仓库", w => `<option value="${w.id}">${w.name}</option>`);
+    select.innerHTML = makeOptionsHTML(warehouseCache, "请选择仓库", w => `<option value="${escapeAttr(w.id)}">${escapeHtml(w.name)}</option>`);
     return;
   }
   const availableWhIds = new Set(invCache.filter(i => String(i.goodsId) === String(goodsId)).map(i => String(i.warehouseId)));
   const filtered = warehouseCache.filter(w => availableWhIds.has(String(w.id)));
-  select.innerHTML = makeOptionsHTML(filtered, filtered.length > 0 ? "请选择仓库" : "此货物暂无可用库存", w => `<option value="${w.id}">${w.name}</option>`);
+  select.innerHTML = makeOptionsHTML(filtered, filtered.length > 0 ? "请选择仓库" : "此货物暂无可用库存", w => `<option value="${escapeAttr(w.id)}">${escapeHtml(w.name)}</option>`);
 }
 
 /* ===========================================================
    Load data
    =========================================================== */
-async function loadReferenceData() {
-  const [goods, warehouses] = await Promise.all([request("/api/goods"), request("/api/warehouses")]);
+async function loadReferenceData(preloaded = {}) {
+  const goods = preloaded.goods || await request("/api/goods");
+  const warehouses = preloaded.warehouses || await request("/api/warehouses");
   goodsCache = goods; warehouseCache = warehouses;
 
-  const goodsOpt = makeOptionsHTML(goods, "请选择货物", g => `<option value="${g.id}">${g.name} (${g.unit})</option>`);
+  const goodsOpt = makeOptionsHTML(goods, "请选择货物", g => `<option value="${escapeAttr(g.id)}">${escapeHtml(g.name)} (${escapeHtml(g.unit)})</option>`);
   document.querySelectorAll('[data-role="goods-select"]').forEach(s => s.innerHTML = goodsOpt);
 
   // 先更新所有仓库选择框，出库表单的过滤在 loadInventory 之后单独处理
-  const whOpt = makeOptionsHTML(warehouses, "请选择仓库", w => `<option value="${w.id}">${w.name}</option>`);
+  const whOpt = makeOptionsHTML(warehouses, "请选择仓库", w => `<option value="${escapeAttr(w.id)}">${escapeHtml(w.name)}</option>`);
   document.querySelectorAll('[data-role="warehouse-select"]').forEach(s => {
     if (!s.closest("#stock-out-form")) s.innerHTML = whOpt;
   });
 
-  if (filterGoods) filterGoods.innerHTML = makeOptionsHTML(goods, "全部货物", g => `<option value="${g.id}">${g.name}</option>`);
+  if (filterGoods) filterGoods.innerHTML = makeOptionsHTML(goods, "全部货物", g => `<option value="${escapeAttr(g.id)}">${escapeHtml(g.name)}</option>`);
 
   goodsCount.textContent = `${goods.length} 个`; renderGoodsList(goods);
   warehouseCount.textContent = `${warehouses.length} 个`; renderWarehouseList(warehouses);
@@ -434,10 +470,10 @@ function renderGoodsList(items) {
   if (filtered.length === 0) { goodsList.innerHTML = `<div class="empty-msg">暂无${filter ? '匹配' : ''}货物</div>`; return; }
   goodsList.innerHTML = filtered.map(g => `
     <div class="data-list-item">
-      <span class="data-list-text">${g.name}<span class="sub">${g.unit}</span></span>
+      <span class="data-list-text">${escapeHtml(g.name)}<span class="sub">${escapeHtml(g.unit)}</span></span>
       <span class="data-list-actions">
-        <button type="button" class="btn-edit" data-id="${g.id}" data-name="${g.name}" data-unit="${g.unit}">✎ 编辑</button>
-        ${hasRole("admin") ? `<button type="button" class="btn-del" data-id="${g.id}" data-name="${g.name}">✕ 删除</button>` : ""}
+        <button type="button" class="btn-edit" data-id="${escapeAttr(g.id)}" data-name="${escapeAttr(g.name)}" data-unit="${escapeAttr(g.unit)}">✎ 编辑</button>
+        ${hasRole("admin") ? `<button type="button" class="btn-del" data-id="${escapeAttr(g.id)}" data-name="${escapeAttr(g.name)}">✕ 删除</button>` : ""}
       </span>
     </div>
   `).join("");
@@ -449,10 +485,10 @@ function renderWarehouseList(items) {
   if (items.length === 0) { warehouseList.innerHTML = `<div class="empty-msg">暂无仓库</div>`; return; }
   warehouseList.innerHTML = items.map(w => `
     <div class="data-list-item">
-      <span class="data-list-text">${w.name}<span class="sub">${w.remark || "—"}</span></span>
+      <span class="data-list-text">${escapeHtml(w.name)}<span class="sub">${escapeHtml(w.remark || "—")}</span></span>
       <span class="data-list-actions">
-        <button type="button" class="btn-edit" data-id="${w.id}" data-name="${w.name}" data-remark="${w.remark || ""}">✎ 编辑</button>
-        ${hasRole("admin") ? `<button type="button" class="btn-del" data-id="${w.id}" data-name="${w.name}">✕ 删除</button>` : ""}
+        <button type="button" class="btn-edit" data-id="${escapeAttr(w.id)}" data-name="${escapeAttr(w.name)}" data-remark="${escapeAttr(w.remark || "")}">✎ 编辑</button>
+        ${hasRole("admin") ? `<button type="button" class="btn-del" data-id="${escapeAttr(w.id)}" data-name="${escapeAttr(w.name)}">✕ 删除</button>` : ""}
       </span>
     </div>
   `).join("");
@@ -460,11 +496,11 @@ function renderWarehouseList(items) {
 
 function inventoryRows(items) {
   if (items.length === 0) return `<tr><td colspan="4" class="empty-cell">暂无库存</td></tr>`;
-  return items.map(i => `<tr><td>${i.goodsName}</td><td>${i.unit}</td><td>${i.warehouseName}</td><td class="text-right"><span class="${qtyClass(i.quantity)}">${i.quantity}</span></td></tr>`).join("");
+  return items.map(i => `<tr><td>${escapeHtml(i.goodsName)}</td><td>${escapeHtml(i.unit)}</td><td>${escapeHtml(i.warehouseName)}</td><td class="text-right"><span class="${qtyClass(i.quantity)}">${escapeHtml(i.quantity)}</span></td></tr>`).join("");
 }
 
-async function loadInventory() {
-  invCache = await request("/api/inventory");
+async function loadInventory(preloadedInventory) {
+  invCache = preloadedInventory || await request("/api/inventory");
   inventoryCount.textContent = `${invCache.length} 项`;
   inventoryBody.innerHTML = inventoryRows(invCache);
   stockinInvCount.textContent = `${invCache.length} 项`;
@@ -475,13 +511,19 @@ async function loadInventory() {
   updateStockOutWarehouseSelect(cg);
 }
 
-async function loadLogs(overrides = {}) {
+async function loadLogs(overrides = {}, preloadedLogs) {
+  const hasOverrides = Object.values(overrides).some(Boolean);
   const params = new URLSearchParams();
   if (overrides.goodsId) params.set("goodsId", overrides.goodsId);
   if (overrides.type) params.set("type", overrides.type);
   if (overrides.startDate) params.set("startDate", overrides.startDate);
   if (overrides.endDate) params.set("endDate", overrides.endDate);
-  const logs = await request("/api/logs" + (params.toString() ? "?" + params.toString() : ""));
+  const logs = (!hasOverrides && preloadedLogs)
+    ? preloadedLogs
+    : await request("/api/logs" + (params.toString() ? "?" + params.toString() : ""));
+  if (!hasOverrides) {
+    logsCache = logs;
+  }
 
   // 更新统计
   updateLogStats(logs);
@@ -489,27 +531,27 @@ async function loadLogs(overrides = {}) {
   logsBody.innerHTML = logs.length > 0
     ? logs.map(l => {
       const time = l.createdAt ? new Date(l.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
-      return `<tr><td>${badge(l.type)}</td><td>${l.goodsName}</td><td>${l.warehouseName}</td><td class="text-right ${l.type === "IN" ? "in-row" : "out-row"}">${l.quantity}</td><td>${l.unit}</td><td>${l.bizDate}</td><td>${time}</td><td>${l.operatorName || l.operatorUsername || "—"}</td><td>${l.remark || "—"}</td></tr>`;
+      return `<tr><td>${badge(l.type)}</td><td>${escapeHtml(l.goodsName)}</td><td>${escapeHtml(l.warehouseName)}</td><td class="text-right ${l.type === "IN" ? "in-row" : "out-row"}">${escapeHtml(l.quantity)}</td><td>${escapeHtml(l.unit)}</td><td>${escapeHtml(l.bizDate)}</td><td>${escapeHtml(time)}</td><td>${escapeHtml(l.operatorName || l.operatorUsername || "—")}</td><td>${escapeHtml(l.remark || "—")}</td></tr>`;
     }).join("")
     : `<tr><td colspan="9" class="empty-cell">暂无流水记录</td></tr>`;
 
   logsBodyMini.innerHTML = logs.slice(0, 5).length > 0
     ? logs.slice(0, 5).map(l => {
       const time = l.createdAt ? new Date(l.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
-      return `<tr><td>${badge(l.type)}</td><td>${l.goodsName}</td><td>${l.warehouseName}</td><td class="text-right ${l.type === "IN" ? "in-row" : "out-row"}">${l.quantity}</td><td>${l.unit}</td><td>${l.bizDate}</td><td>${time}</td></tr>`;
+      return `<tr><td>${badge(l.type)}</td><td>${escapeHtml(l.goodsName)}</td><td>${escapeHtml(l.warehouseName)}</td><td class="text-right ${l.type === "IN" ? "in-row" : "out-row"}">${escapeHtml(l.quantity)}</td><td>${escapeHtml(l.unit)}</td><td>${escapeHtml(l.bizDate)}</td><td>${escapeHtml(time)}</td></tr>`;
     }).join("")
     : `<tr><td colspan="7" class="empty-cell">暂无流水</td></tr>`;
 
   const ins = logs.filter(l => l.type === "IN").slice(0, 6);
   logsBodyIn.innerHTML = ins.length > 0 ? ins.map(l => {
     const time = l.createdAt ? new Date(l.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
-    return `<tr><td>${l.goodsName}</td><td>${l.warehouseName}</td><td class="text-right in-row">${l.quantity}</td><td>${l.unit}</td><td>${l.bizDate}</td><td>${time}</td><td>${l.operatorName || l.operatorUsername || "—"}</td></tr>`;
+    return `<tr><td>${escapeHtml(l.goodsName)}</td><td>${escapeHtml(l.warehouseName)}</td><td class="text-right in-row">${escapeHtml(l.quantity)}</td><td>${escapeHtml(l.unit)}</td><td>${escapeHtml(l.bizDate)}</td><td>${escapeHtml(time)}</td><td>${escapeHtml(l.operatorName || l.operatorUsername || "—")}</td></tr>`;
   }).join("") : `<tr><td colspan="7" class="empty-cell">暂无</td></tr>`;
 
   const outs = logs.filter(l => l.type === "OUT").slice(0, 6);
   logsBodyOut.innerHTML = outs.length > 0 ? outs.map(l => {
     const time = l.createdAt ? new Date(l.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
-    return `<tr><td>${l.goodsName}</td><td>${l.warehouseName}</td><td class="text-right out-row">${l.quantity}</td><td>${l.unit}</td><td>${l.bizDate}</td><td>${time}</td><td>${l.operatorName || l.operatorUsername || "—"}</td></tr>`;
+    return `<tr><td>${escapeHtml(l.goodsName)}</td><td>${escapeHtml(l.warehouseName)}</td><td class="text-right out-row">${escapeHtml(l.quantity)}</td><td>${escapeHtml(l.unit)}</td><td>${escapeHtml(l.bizDate)}</td><td>${escapeHtml(time)}</td><td>${escapeHtml(l.operatorName || l.operatorUsername || "—")}</td></tr>`;
   }).join("") : `<tr><td colspan="7" class="empty-cell">暂无</td></tr>`;
 }
 
@@ -587,8 +629,10 @@ async function exportLogsToExcel() {
 /* ===========================================================
    Stats
    =========================================================== */
-async function loadStats() {
-  const [goods, warehouses, logs] = await Promise.all([request("/api/goods"), request("/api/warehouses"), request("/api/logs")]);
+async function loadStats(preloaded = {}) {
+  const goods = preloaded.goods || goodsCache || [];
+  const warehouses = preloaded.warehouses || warehouseCache || [];
+  const logs = preloaded.logs || logsCache || [];
   statGoods.textContent = goods.length; statWarehouses.textContent = warehouses.length;
   const ti = logs.filter(l => l.type === "IN" && l.bizDate === today); const to = logs.filter(l => l.type === "OUT" && l.bizDate === today);
   statStockinToday.textContent = ti.reduce((s, l) => s + l.quantity, 0); statStockoutToday.textContent = to.reduce((s, l) => s + l.quantity, 0);
@@ -597,8 +641,13 @@ async function loadStats() {
 /* ===========================================================
    Users CRUD
    =========================================================== */
-async function loadAccounts() {
-  try { const users = await request("/api/users"); usersCache = users; usersCount.textContent = `${users.length} 个`; renderUsersList(users); }
+async function loadAccounts(preloadedUsers) {
+  try {
+    const users = preloadedUsers || await request("/api/users");
+    usersCache = users;
+    usersCount.textContent = `${users.length} 个`;
+    renderUsersList(users);
+  }
   catch { usersCache = []; usersCount.textContent = "0 个"; usersList.innerHTML = ""; }
 }
 
@@ -610,19 +659,19 @@ function renderUsersList(items) {
     <div class="data-list-item">
       <div class="user-info">
         <div class="user-main">
-          <span class="user-username">${u.username}</span>
-          ${u.realName ? `<span class="user-realname">${u.realName}</span>` : ""}
+          <span class="user-username">${escapeHtml(u.username)}</span>
+          ${u.realName ? `<span class="user-realname">${escapeHtml(u.realName)}</span>` : ""}
         </div>
         <div class="user-meta">
-          <span class="user-role-badge" style="background:${ROLE_COLORS[u.role] || '#64748b'}18;color:${ROLE_COLORS[u.role] || '#64748b'};">${ROLE_LABELS[u.role]}</span>
+          <span class="user-role-badge" style="background:${ROLE_COLORS[u.role] || '#64748b'}18;color:${ROLE_COLORS[u.role] || '#64748b'};">${escapeHtml(ROLE_LABELS[u.role])}</span>
           <span class="user-status ${u.isActive ? 'active' : 'inactive'}">${u.isActive ? "● 启用" : "● 停用"}</span>
-          <span class="user-created">创建于 ${createDate}</span>
+          <span class="user-created">创建于 ${escapeHtml(createDate)}</span>
         </div>
       </div>
       <span class="data-list-actions">
-        <button type="button" class="btn-edit" data-user-id="${u.id}" data-user-name="${u.username}" data-user-real="${u.realName}" data-user-role="${u.role}" data-user-active="${u.isActive}">✎ 编辑</button>
-        <button type="button" class="btn-icon btn-resetpwd" data-resetpwd="${u.id}" data-resetpwd-name="${u.username}" title="重置密码"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></button>
-        ${u.username !== "admin" ? `<button type="button" class="btn-del" data-user-del-id="${u.id}" data-user-del-name="${u.username}">✕ 删除</button>` : ""}
+        <button type="button" class="btn-edit" data-user-id="${escapeAttr(u.id)}" data-user-name="${escapeAttr(u.username)}" data-user-real="${escapeAttr(u.realName)}" data-user-role="${escapeAttr(u.role)}" data-user-active="${escapeAttr(u.isActive)}">✎ 编辑</button>
+        <button type="button" class="btn-icon btn-resetpwd" data-resetpwd="${escapeAttr(u.id)}" data-resetpwd-name="${escapeAttr(u.username)}" title="重置密码"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></button>
+        ${u.username !== "admin" ? `<button type="button" class="btn-del" data-user-del-id="${escapeAttr(u.id)}" data-user-del-name="${escapeAttr(u.username)}">✕ 删除</button>` : ""}
       </span>
     </div>
   `;
@@ -712,7 +761,23 @@ if (usersList) {
    =========================================================== */
 async function refreshAll() {
   showLoading();
-  try { await Promise.all([loadReferenceData(), loadInventory(), loadLogs(), loadStats(), loadAccounts()]); }
+  try {
+    const [goods, warehouses, inventory, logs, users] = await Promise.all([
+      request("/api/goods"),
+      request("/api/warehouses"),
+      request("/api/inventory"),
+      request("/api/logs"),
+      currentUser?.role === "admin" ? request("/api/users") : Promise.resolve([]),
+    ]);
+
+    await Promise.all([
+      loadReferenceData({ goods, warehouses }),
+      loadInventory(inventory),
+      loadLogs({}, logs),
+      loadAccounts(users),
+    ]);
+    await loadStats({ goods, warehouses, logs });
+  }
   catch (e) { showToast(e.message, true); }
   hideLoading();
 }
