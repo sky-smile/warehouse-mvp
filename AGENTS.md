@@ -22,6 +22,7 @@
 - Trust `src/server.js` over `README.md` for API behavior. The README still says some read APIs are public, but `/api/goods`, `/api/warehouses`, `/api/inventory`, and `/api/logs` are currently protected by `authMiddleware` and tests assert `401` without a token.
 - Health check stays public at `/api/health`.
 - Frontend auth is bearer-token based; the SPA stores the token client-side and sends `Authorization: Bearer <token>`.
+- Default admin `admin / 123456` is still auto-created, but first login now requires a password change. Backend exposes this via `GET /api/me/security` (`mustChangePassword`), and the frontend forces the change-password modal until the default admin sets a non-default password.
 
 ## Testing Notes
 - Tests use `process.env.TEST_DB_PATH = ":memory:"` before loading the app, so they do not touch `data/warehouse.db`.
